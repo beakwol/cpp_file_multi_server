@@ -76,7 +76,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="child_main.cpp" />
     <ClCompile Include="ChildServer.cpp" />
   </ItemGroup>
   <ItemGroup>
