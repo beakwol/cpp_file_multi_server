@@ -63,9 +63,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Protocol.cpp" />
+    <ClCompile Include="SockUtil.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Protocol.h" />
+    <ClInclude Include="SockUtil.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

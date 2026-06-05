@@ -4,7 +4,10 @@ project(MultiServer CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(protocol STATIC common/Protocol.cpp)
+add_library(protocol STATIC
+    common/Protocol.cpp
+    common/SockUtil.cpp
+)
 target_include_directories(protocol PUBLIC common)
 target_link_libraries(protocol PUBLIC ws2_32)
 

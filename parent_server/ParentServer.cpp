@@ -1,10 +1,10 @@
 ﻿#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <winsock2.h>
 #include <windows.h>
 #include "ParentServer.h"
 #include "Protocol.h"
+#include "SockUtil.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -14,31 +14,16 @@ ParentServer::ParentServer(uint16_t port) : m_listenPort(port) {}
 ParentServer::~ParentServer() { Shutdown(); }
 
 bool ParentServer::Init() {
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        std::cerr << "[Parent] WSAStartup failed: " << WSAGetLastError() << "\n";
-        return false;
-    }
+    if (!SockUtil::Startup()) return false;
 
-    m_listenSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    m_listenSock = SockUtil::Create();
     if (m_listenSock == INVALID_SOCKET) {
-        std::cerr << "[Parent] socket failed: " << WSAGetLastError() << "\n";
-        WSACleanup();
+        SockUtil::Cleanup();
         return false;
     }
 
-    sockaddr_in addr = {};
-    addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port        = htons(m_listenPort);
-
-    if (bind(m_listenSock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR) {
-        std::cerr << "[Parent] bind failed: " << WSAGetLastError() << "\n";
-        return false;
-    }
-
-    if (listen(m_listenSock, SOMAXCONN) == SOCKET_ERROR) {
-        std::cerr << "[Parent] listen failed: " << WSAGetLastError() << "\n";
+    if (!SockUtil::Bind(m_listenSock, m_listenPort) ||
+        !SockUtil::Listen(m_listenSock)) {
         return false;
     }
 
@@ -48,37 +33,29 @@ bool ParentServer::Init() {
 
 void ParentServer::Run() {
     while (true) {
-        sockaddr_in clientAddr = {};
-        int addrLen = sizeof(clientAddr);
-        SOCKET clientSock = accept(m_listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &addrLen);
-        if (clientSock == INVALID_SOCKET) {
-            std::cerr << "[Parent] accept failed: " << WSAGetLastError() << "\n";
-            break;
-        }
+        SOCKET clientSock = SockUtil::Accept(m_listenSock);
+        if (clientSock == INVALID_SOCKET) break;
 
         uint16_t childPort = AllocatePort();
         std::cout << "[Parent] Client connected. Spawning child on port " << childPort << "\n";
 
         if (SpawnChild(childPort) == 0) {
             std::cerr << "[Parent] Failed to spawn child\n";
-            closesocket(clientSock);
+            SockUtil::Close(clientSock);
             continue;
         }
 
         Sleep(200);
 
-        uint16_t portNet = htons(childPort);
+        uint16_t portNet = SockUtil::HostToNet16(childPort);
         Protocol::SendAll(clientSock, &portNet, sizeof(portNet));
-        closesocket(clientSock);
+        SockUtil::Close(clientSock);
     }
 }
 
 void ParentServer::Shutdown() {
-    if (m_listenSock != INVALID_SOCKET) {
-        closesocket(m_listenSock);
-        m_listenSock = INVALID_SOCKET;
-    }
-    WSACleanup();
+    SockUtil::Close(m_listenSock);
+    SockUtil::Cleanup();
 }
 
 uint16_t ParentServer::AllocatePort() {

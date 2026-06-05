@@ -1,10 +1,9 @@
 ﻿#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include "Client.h"
 #include "Protocol.h"
+#include "SockUtil.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -13,16 +12,11 @@ Client::Client() {}
 Client::~Client() { Cleanup(); }
 
 bool Client::Init() {
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        std::cerr << "[Client] WSAStartup failed: " << WSAGetLastError() << "\n";
-        return false;
-    }
-    return true;
+    return SockUtil::Startup();
 }
 
 void Client::Cleanup() {
-    WSACleanup();
+    SockUtil::Cleanup();
 }
 
 bool Client::Run(const std::string& host, uint16_t parentPort, const std::string& filePath) {
@@ -45,17 +39,11 @@ bool Client::Run(const std::string& host, uint16_t parentPort, const std::string
 }
 
 bool Client::GetChildPort(const std::string& host, uint16_t parentPort, uint16_t& outChildPort) {
-    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    SOCKET sock = SockUtil::Create();
     if (sock == INVALID_SOCKET) return false;
 
-    sockaddr_in addr = {};
-    addr.sin_family = AF_INET;
-    addr.sin_port   = htons(parentPort);
-    inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
-
-    if (connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR) {
-        std::cerr << "[Client] connect to parent failed: " << WSAGetLastError() << "\n";
-        closesocket(sock);
+    if (!SockUtil::Connect(sock, host, parentPort)) {
+        SockUtil::Close(sock);
         return false;
     }
 
@@ -63,10 +51,10 @@ bool Client::GetChildPort(const std::string& host, uint16_t parentPort, uint16_t
 
     uint16_t portNet = 0;
     bool ok = Protocol::RecvAll(sock, &portNet, sizeof(portNet));
-    closesocket(sock);
+    SockUtil::Close(sock);
 
     if (!ok) return false;
-    outChildPort = ntohs(portNet);
+    outChildPort = SockUtil::NetToHost16(portNet);
     return true;
 }
 
@@ -79,40 +67,34 @@ bool Client::TransferFile(const std::string& host, uint16_t childPort, const std
     std::vector<char> fileData((std::istreambuf_iterator<char>(fin)), std::istreambuf_iterator<char>());
     fin.close();
 
-    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    SOCKET sock = SockUtil::Create();
     if (sock == INVALID_SOCKET) return false;
 
-    sockaddr_in addr = {};
-    addr.sin_family = AF_INET;
-    addr.sin_port   = htons(childPort);
-    inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
-
-    if (connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR) {
-        std::cerr << "[Client] connect to child failed: " << WSAGetLastError() << "\n";
-        closesocket(sock);
+    if (!SockUtil::Connect(sock, host, childPort)) {
+        SockUtil::Close(sock);
         return false;
     }
 
     std::cout << "[Client] Performing handshake...\n";
     if (!Protocol::HandshakeClient(sock)) {
         std::cerr << "[Client] Handshake failed\n";
-        closesocket(sock);
+        SockUtil::Close(sock);
         return false;
     }
     std::cout << "[Client] Handshake OK. Sending " << fileData.size() << " bytes...\n";
 
     if (!Protocol::SendFile(sock, fileData)) {
-        closesocket(sock);
+        SockUtil::Close(sock);
         return false;
     }
 
     std::vector<char> result;
     if (!Protocol::RecvFile(sock, result)) {
-        closesocket(sock);
+        SockUtil::Close(sock);
         return false;
     }
 
-    closesocket(sock);
+    SockUtil::Close(sock);
     return SaveResult(filePath, result);
 }
 

@@ -1,9 +1,9 @@
 ﻿#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <winsock2.h>
 #include "ChildServer.h"
 #include "Protocol.h"
+#include "SockUtil.h"
 #include <iostream>
 #include <ctime>
 #include <string>
@@ -13,45 +13,29 @@ ChildServer::ChildServer(uint16_t port) : m_port(port) {}
 ChildServer::~ChildServer() { Shutdown(); }
 
 bool ChildServer::Init() {
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        std::cerr << "[Child:" << m_port << "] WSAStartup failed\n";
-        return false;
-    }
+    if (!SockUtil::Startup()) return false;
 
-    m_listenSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    m_listenSock = SockUtil::Create();
     if (m_listenSock == INVALID_SOCKET) return false;
 
-    sockaddr_in addr = {};
-    addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port        = htons(m_port);
-
-    if (bind(m_listenSock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR) {
-        std::cerr << "[Child:" << m_port << "] bind failed: " << WSAGetLastError() << "\n";
+    if (!SockUtil::Bind(m_listenSock, m_port) ||
+        !SockUtil::Listen(m_listenSock, 1)) {
         return false;
     }
-
-    if (listen(m_listenSock, 1) == SOCKET_ERROR) return false;
 
     std::cout << "[Child:" << m_port << "] Listening\n";
     return true;
 }
 
 void ChildServer::Run() {
-    sockaddr_in clientAddr = {};
-    int addrLen = sizeof(clientAddr);
-    SOCKET clientSock = accept(m_listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &addrLen);
-    if (clientSock == INVALID_SOCKET) {
-        std::cerr << "[Child:" << m_port << "] accept failed\n";
-        return;
-    }
+    SOCKET clientSock = SockUtil::Accept(m_listenSock);
+    if (clientSock == INVALID_SOCKET) return;
 
     std::cout << "[Child:" << m_port << "] Client connected. Handshaking...\n";
 
     if (!Protocol::HandshakeServer(clientSock)) {
         std::cerr << "[Child:" << m_port << "] Handshake failed\n";
-        closesocket(clientSock);
+        SockUtil::Close(clientSock);
         return;
     }
 
@@ -60,7 +44,7 @@ void ChildServer::Run() {
     std::vector<char> fileData;
     if (!Protocol::RecvFile(clientSock, fileData)) {
         std::cerr << "[Child:" << m_port << "] Failed to receive file\n";
-        closesocket(clientSock);
+        SockUtil::Close(clientSock);
         return;
     }
 
@@ -74,7 +58,7 @@ void ChildServer::Run() {
         std::cout << "[Child:" << m_port << "] Sent " << modified.size() << " bytes\n";
     }
 
-    closesocket(clientSock);
+    SockUtil::Close(clientSock);
 
     // 포트 확인용 대기 (netstat -ano | findstr "5600" 으로 확인 가능)
     constexpr int HOLD_SECONDS = 10;
@@ -87,11 +71,8 @@ void ChildServer::Run() {
 }
 
 void ChildServer::Shutdown() {
-    if (m_listenSock != INVALID_SOCKET) {
-        closesocket(m_listenSock);
-        m_listenSock = INVALID_SOCKET;
-    }
-    WSACleanup();
+    SockUtil::Close(m_listenSock);
+    SockUtil::Cleanup();
 }
 
 std::vector<char> ChildServer::ModifyContent(const std::vector<char>& input) const {
