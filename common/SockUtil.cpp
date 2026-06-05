@@ -6,9 +6,7 @@
 #include "SockUtil.h"
 #include <iostream>
 
-namespace SockUtil {
-
-bool Startup() {
+bool SockUtil::Startup() {
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         std::cerr << "[SockUtil] WSAStartup failed: " << WSAGetLastError() << "\n";
@@ -17,29 +15,29 @@ bool Startup() {
     return true;
 }
 
-void Cleanup() {
+void SockUtil::Cleanup() {
     WSACleanup();
 }
 
-int LastError() {
+int SockUtil::LastError() {
     return WSAGetLastError();
 }
 
-SOCKET Create() {
+SOCKET SockUtil::Create() {
     SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (s == INVALID_SOCKET)
         std::cerr << "[SockUtil] socket failed: " << WSAGetLastError() << "\n";
     return s;
 }
 
-void Close(SOCKET& s) {
+void SockUtil::Close(SOCKET& s) {
     if (s != INVALID_SOCKET) {
         closesocket(s);
         s = INVALID_SOCKET;
     }
 }
 
-bool Bind(SOCKET s, uint16_t port) {
+bool SockUtil::Bind(SOCKET s, uint16_t port) {
     sockaddr_in addr = {};
     addr.sin_family      = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
@@ -51,7 +49,7 @@ bool Bind(SOCKET s, uint16_t port) {
     return true;
 }
 
-bool Listen(SOCKET s, int backlog) {
+bool SockUtil::Listen(SOCKET s, int backlog) {
     if (listen(s, backlog) == SOCKET_ERROR) {
         std::cerr << "[SockUtil] listen failed: " << WSAGetLastError() << "\n";
         return false;
@@ -59,7 +57,7 @@ bool Listen(SOCKET s, int backlog) {
     return true;
 }
 
-SOCKET Accept(SOCKET s) {
+SOCKET SockUtil::Accept(SOCKET s) {
     sockaddr_in clientAddr = {};
     int addrLen = sizeof(clientAddr);
     SOCKET client = accept(s, reinterpret_cast<sockaddr*>(&clientAddr), &addrLen);
@@ -68,7 +66,7 @@ SOCKET Accept(SOCKET s) {
     return client;
 }
 
-bool Connect(SOCKET s, const std::string& host, uint16_t port) {
+bool SockUtil::Connect(SOCKET s, const std::string& host, uint16_t port) {
     sockaddr_in addr = {};
     addr.sin_family = AF_INET;
     addr.sin_port   = htons(port);
@@ -81,17 +79,15 @@ bool Connect(SOCKET s, const std::string& host, uint16_t port) {
     return true;
 }
 
-int Send(SOCKET s, const char* buf, int len) {
+int SockUtil::Send(SOCKET s, const char* buf, int len) {
     return send(s, buf, len, 0);
 }
 
-int Recv(SOCKET s, char* buf, int len) {
+int SockUtil::Recv(SOCKET s, char* buf, int len) {
     return recv(s, buf, len, 0);
 }
 
-uint16_t HostToNet16(uint16_t v) { return htons(v); }
-uint16_t NetToHost16(uint16_t v) { return ntohs(v); }
-uint32_t HostToNet32(uint32_t v) { return htonl(v); }
-uint32_t NetToHost32(uint32_t v) { return ntohl(v); }
-
-} // namespace SockUtil
+uint16_t SockUtil::HostToNet16(uint16_t v) { return htons(v); }
+uint16_t SockUtil::NetToHost16(uint16_t v) { return ntohs(v); }
+uint32_t SockUtil::HostToNet32(uint32_t v) { return htonl(v); }
+uint32_t SockUtil::NetToHost32(uint32_t v) { return ntohl(v); }
