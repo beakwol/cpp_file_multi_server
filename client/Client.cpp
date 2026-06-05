@@ -1,22 +1,47 @@
-﻿#ifndef WIN32_LEAN_AND_MEAN
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include "Client.h"
 #include "Protocol.h"
-#include "SockUtil.h"
+#include <ws2tcpip.h>
 #include <iostream>
 #include <fstream>
 #include <string>
+
+class MyNetUtil {
+public:
+    static inline bool Startup() {
+        WSADATA wsa;
+        return (WSAStartup(MAKEWORD(2, 2), &wsa) == 0);
+    }
+    static inline void Cleanup() { WSACleanup(); }
+    static inline SOCKET Create() {
+        return socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    }
+    static inline void Close(SOCKET& s) {
+        if (s != INVALID_SOCKET) { closesocket(s); s = INVALID_SOCKET; }
+    }
+    static inline uint16_t NetToHost16(uint16_t v) { return ntohs(v); }
+    static inline bool MyConnect(SOCKET s, const std::string& host, uint16_t port) {
+        sockaddr_in addr = {};
+        addr.sin_family = AF_INET;
+        addr.sin_port   = htons(port);
+        inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
+        if (::connect(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR)
+            return false;
+        return true;
+    }
+};
 
 Client::Client() {}
 Client::~Client() { Cleanup(); }
 
 bool Client::Init() {
-    return SockUtil::Startup();
+    return MyNetUtil::Startup();
 }
 
 void Client::Cleanup() {
-    SockUtil::Cleanup();
+    MyNetUtil::Cleanup();
 }
 
 bool Client::Run(const std::string& host, uint16_t parentPort, const std::string& filePath) {
@@ -39,11 +64,11 @@ bool Client::Run(const std::string& host, uint16_t parentPort, const std::string
 }
 
 bool Client::GetChildPort(const std::string& host, uint16_t parentPort, uint16_t& outChildPort) {
-    SOCKET sock = SockUtil::Create();
+    SOCKET sock = MyNetUtil::Create();
     if (sock == INVALID_SOCKET) return false;
 
-    if (!SockUtil::Connect(sock, host, parentPort)) {
-        SockUtil::Close(sock);
+    if (!MyNetUtil::MyConnect(sock, host, parentPort)) {
+        MyNetUtil::Close(sock);
         return false;
     }
 
@@ -51,10 +76,10 @@ bool Client::GetChildPort(const std::string& host, uint16_t parentPort, uint16_t
 
     uint16_t portNet = 0;
     bool ok = Protocol::RecvAll(sock, &portNet, sizeof(portNet));
-    SockUtil::Close(sock);
+    MyNetUtil::Close(sock);
 
     if (!ok) return false;
-    outChildPort = SockUtil::NetToHost16(portNet);
+    outChildPort = MyNetUtil::NetToHost16(portNet);
     return true;
 }
 
@@ -67,34 +92,34 @@ bool Client::TransferFile(const std::string& host, uint16_t childPort, const std
     std::vector<char> fileData((std::istreambuf_iterator<char>(fin)), std::istreambuf_iterator<char>());
     fin.close();
 
-    SOCKET sock = SockUtil::Create();
+    SOCKET sock = MyNetUtil::Create();
     if (sock == INVALID_SOCKET) return false;
 
-    if (!SockUtil::Connect(sock, host, childPort)) {
-        SockUtil::Close(sock);
+    if (!MyNetUtil::MyConnect(sock, host, childPort)) {
+        MyNetUtil::Close(sock);
         return false;
     }
 
     std::cout << "[Client] Performing handshake...\n";
     if (!Protocol::HandshakeClient(sock)) {
         std::cerr << "[Client] Handshake failed\n";
-        SockUtil::Close(sock);
+        MyNetUtil::Close(sock);
         return false;
     }
     std::cout << "[Client] Handshake OK. Sending " << fileData.size() << " bytes...\n";
 
     if (!Protocol::SendFile(sock, fileData)) {
-        SockUtil::Close(sock);
+        MyNetUtil::Close(sock);
         return false;
     }
 
     std::vector<char> result;
     if (!Protocol::RecvFile(sock, result)) {
-        SockUtil::Close(sock);
+        MyNetUtil::Close(sock);
         return false;
     }
 
-    SockUtil::Close(sock);
+    MyNetUtil::Close(sock);
     return SaveResult(filePath, result);
 }
 
