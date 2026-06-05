@@ -23,9 +23,6 @@ public:
     static bool   Listen(SOCKET s, int backlog = SOMAXCONN);
     static SOCKET Accept(SOCKET s);
 
-    // 클라이언트
-    static bool   Connect(SOCKET s, const std::string& host, uint16_t port);
-
     // 송수신 (단순 래핑, 루프 없음)
     static int    Send(SOCKET s, const char* buf, int len);
     static int    Recv(SOCKET s, char* buf, int len);

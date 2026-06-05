@@ -66,18 +66,6 @@ SOCKET SockUtil::Accept(SOCKET s) {
     return client;
 }
 
-bool SockUtil::Connect(SOCKET s, const std::string& host, uint16_t port) {
-    sockaddr_in addr = {};
-    addr.sin_family = AF_INET;
-    addr.sin_port   = htons(port);
-    inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
-    if (connect(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR) {
-        std::cerr << "[SockUtil] connect failed (" << host << ":" << port << "): "
-                  << WSAGetLastError() << "\n";
-        return false;
-    }
-    return true;
-}
 
 int SockUtil::Send(SOCKET s, const char* buf, int len) {
     return send(s, buf, len, 0);
