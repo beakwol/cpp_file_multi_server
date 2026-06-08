@@ -60,7 +60,6 @@ void ChildServer::Run() {
 
     SockUtil::Close(clientSock);
 
-    // 포트 확인용 대기 (netstat -ano | findstr "5600" 으로 확인 가능)
     constexpr int HOLD_SECONDS = 10;
     std::cout << "[Child:" << m_port << "] Holding for " << HOLD_SECONDS << "s (port verification)...\n";
     for (int i = HOLD_SECONDS; i > 0; --i) {

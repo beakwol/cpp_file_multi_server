@@ -11,14 +11,14 @@ namespace Protocol {
     constexpr uint16_t CHILD_PORT_BASE = 56001;
     constexpr int      MAX_CHILDREN    = 64;
 
-    constexpr uint32_t HANDSHAKE_HELLO = 0x48454C4F; // "HELO"
-    constexpr uint32_t HANDSHAKE_READY = 0x52454459; // "REDY"
+    constexpr uint32_t HANDSHAKE_HELLO = 0x48454C4F;
+    constexpr uint32_t HANDSHAKE_READY = 0x52454459;
 
     bool SendAll(SOCKET s, const void* buf, int len);
     bool RecvAll(SOCKET s, void* buf, int len);
     bool SendFile(SOCKET s, const std::vector<char>& data);
     bool RecvFile(SOCKET s, std::vector<char>& data);
 
-    bool HandshakeClient(SOCKET s); // send HELLO, expect READY
-    bool HandshakeServer(SOCKET s); // expect HELLO, send READY
+    bool HandshakeClient(SOCKET s);
+    bool HandshakeServer(SOCKET s);
 }

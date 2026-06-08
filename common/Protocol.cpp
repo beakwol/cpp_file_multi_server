@@ -63,4 +63,4 @@ bool HandshakeServer(SOCKET s) {
     return SendAll(s, &ready, sizeof(ready));
 }
 
-} // namespace Protocol
+}
